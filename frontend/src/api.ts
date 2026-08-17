@@ -2,8 +2,8 @@ import { AIConfig, AITask, AITaskResult, AuthSession, AuthUser, ExportMode, Proj
 
 function defaultApiBase() {
   const { hostname, port } = window.location;
-  if ((hostname === "127.0.0.1" || hostname === "localhost") && port === "4173") {
-    return "http://127.0.0.1:8000";
+  if ((hostname === "127.0.0.1" || hostname === "localhost") && port === "4183") {
+    return "http://127.0.0.1:8010";
   }
   return "/api";
 }

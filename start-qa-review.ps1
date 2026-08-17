@@ -5,7 +5,7 @@ $backend = Join-Path $root "backend"
 $frontend = Join-Path $root "frontend"
 $python = "C:\Users\28595\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 $npm = "D:\Program Files\nodejs\npm.cmd"
-$url = "http://127.0.0.1:4173/"
+$url = "http://127.0.0.1:4183/"
 $logDir = Join-Path $root "logs"
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -61,7 +61,7 @@ $backendScript = @"
 `$ErrorActionPreference = "Continue"
 Set-Location -LiteralPath '$backend'
 "Backend starting at $(Get-Date -Format s)" | Tee-Object -FilePath '$backendLog' -Append
-& '$python' -m uvicorn app.main:app --host 127.0.0.1 --port 8000 *>> '$backendLog'
+& '$python' -m uvicorn app.main:app --host 127.0.0.1 --port 8010 *>> '$backendLog'
 `$code = if (`$LASTEXITCODE -ne `$null) { `$LASTEXITCODE } else { 0 }
 "Backend stopped. Exit code: `$code" | Tee-Object -FilePath '$backendExit'
 "Backend stopped. Check log: $backendLog"
@@ -72,7 +72,7 @@ $frontendScript = @"
 `$ErrorActionPreference = "Continue"
 Set-Location -LiteralPath '$frontend'
 "Frontend starting at $(Get-Date -Format s)" | Tee-Object -FilePath '$frontendLog' -Append
-& '$npm' run preview -- --host 127.0.0.1 --port 4173 *>> '$frontendLog'
+& '$npm' run preview -- --host 127.0.0.1 --port 4183 *>> '$frontendLog'
 `$code = if (`$LASTEXITCODE -ne `$null) { `$LASTEXITCODE } else { 0 }
 "Frontend stopped. Exit code: `$code" | Tee-Object -FilePath '$frontendExit'
 "Frontend stopped. Check log: $frontendLog"
@@ -82,7 +82,7 @@ Read-Host "Press Enter to close"
 Set-Content -Encoding UTF8 -Path $backendRunner -Value $backendScript
 Set-Content -Encoding UTF8 -Path $frontendRunner -Value $frontendScript
 
-Write-Host "Starting backend: http://127.0.0.1:8000"
+Write-Host "Starting backend: http://127.0.0.1:8010"
 Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $backendRunner -WindowStyle Normal
 
 Start-Sleep -Seconds 2

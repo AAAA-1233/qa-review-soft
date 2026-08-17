@@ -22,6 +22,6 @@ if errorlevel 1 (
 echo.
 echo Launch commands sent. Keep the backend and frontend windows open.
 echo Open this URL if the browser did not open automatically:
-echo http://127.0.0.1:4173/
+echo http://127.0.0.1:4183/
 echo.
 pause

@@ -5,7 +5,7 @@ $backend = Join-Path $root "backend"
 $frontend = Join-Path $root "frontend"
 $python = "C:\Users\28595\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 $npm = "D:\Program Files\nodejs\npm.cmd"
-$url = "http://127.0.0.1:4173/"
+$url = "http://127.0.0.1:4183/"
 $logDir = Join-Path $root "logs"
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -53,10 +53,10 @@ if (-not (Test-Path (Join-Path $frontend "dist\index.html"))) {
 $backendLog = Join-Path $logDir "backend.log"
 $frontendLog = Join-Path $logDir "frontend.log"
 
-$backendCommand = "cd /d `"$backend`" && `"$python`" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 1>> `"$backendLog`" 2>>&1"
-$frontendCommand = "cd /d `"$frontend`" && call `"$npm`" run preview -- --host 127.0.0.1 --port 4173 1>> `"$frontendLog`" 2>>&1"
+$backendCommand = "cd /d `"$backend`" && `"$python`" -m uvicorn app.main:app --host 127.0.0.1 --port 8010 1>> `"$backendLog`" 2>>&1"
+$frontendCommand = "cd /d `"$frontend`" && call `"$npm`" run preview -- --host 127.0.0.1 --port 4183 1>> `"$frontendLog`" 2>>&1"
 
-Write-Host "正在启动后端：http://127.0.0.1:8000"
+Write-Host "正在启动后端：http://127.0.0.1:8010"
 Start-Process -FilePath "cmd.exe" -ArgumentList "/k", $backendCommand -WindowStyle Normal
 
 Start-Sleep -Seconds 2

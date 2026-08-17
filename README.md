@@ -7,7 +7,7 @@
 ```powershell
 cd backend
 C:\Users\28595\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pip install -r requirements.txt
-C:\Users\28595\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+C:\Users\28595\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010
 ```
 
 另开终端：
@@ -16,10 +16,10 @@ C:\Users\28595\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\p
 cd frontend
 npm install
 npm run build
-npm run preview -- --port 4173
+npm run preview -- --port 4183
 ```
 
-打开 `http://127.0.0.1:4173/`。
+打开 `http://127.0.0.1:4183/`。
 
 ## 已实现
 
