@@ -21,6 +21,8 @@ logs/
 # Frontend dependencies and builds
 frontend/node_modules/
 frontend/dist/
+frontend/.wrangler/
+.wrangler/
 
 # Local scratch data
 tmp_upload_test/
