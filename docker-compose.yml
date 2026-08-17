@@ -24,6 +24,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       ALLOW_SERVER_PATH_IMPORT: ${ALLOW_SERVER_PATH_IMPORT:-false}
       SEED_SAMPLE_DATA: ${SEED_SAMPLE_DATA:-false}
+      AUTH_SECRET: ${AUTH_SECRET:-change-this-long-random-secret}
+      AUTH_TOKEN_EXPIRE_HOURS: ${AUTH_TOKEN_EXPIRE_HOURS:-168}
     volumes:
       - qa_storage:/data
     depends_on:
