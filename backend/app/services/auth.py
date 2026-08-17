@@ -18,6 +18,8 @@ from app.config import AUTH_SECRET, AUTH_TOKEN_EXPIRE_HOURS
 from app.database import get_db
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_\-.]{3,40}$")
+PASSWORD_ITERATIONS = 260_000
 
 
 def normalize_email(email: str) -> str:
@@ -25,6 +27,30 @@ def normalize_email(email: str) -> str:
     if not EMAIL_RE.match(normalized):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "邮箱格式不正确")
     return normalized
+
+
+def normalize_username(username: str) -> str:
+    normalized = username.strip().lower()
+    if not USERNAME_RE.match(normalized):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "账号只能使用 3-40 位字母、数字、下划线、横线或点")
+    return normalized
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("ascii"), PASSWORD_ITERATIONS)
+    return f"pbkdf2_sha256${PASSWORD_ITERATIONS}${salt}${digest.hex()}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        algorithm, iterations_text, salt, expected = password_hash.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("ascii"), int(iterations_text)).hex()
+        return hmac.compare_digest(digest, expected)
+    except Exception:
+        return False
 
 
 def generate_code() -> str:
@@ -38,7 +64,7 @@ def hash_code(email: str, code: str) -> str:
 
 def issue_token(user: models.User) -> str:
     expires_at = int((datetime.utcnow() + timedelta(hours=AUTH_TOKEN_EXPIRE_HOURS)).timestamp())
-    payload = _b64(json.dumps({"sub": user.id, "email": user.email, "exp": expires_at}, separators=(",", ":")).encode("utf-8"))
+    payload = _b64(json.dumps({"sub": user.id, "email": user.email, "username": user.username, "exp": expires_at}, separators=(",", ":")).encode("utf-8"))
     signature = _sign(payload)
     return f"{payload}.{signature}"
 
@@ -57,7 +83,7 @@ def get_current_user(
             raise ValueError("expired")
         user_id = int(payload["sub"])
     except Exception as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录已失效，请重新验证邮箱") from exc
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录已失效，请重新登录") from exc
     user = db.get(models.User, user_id)
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录用户不存在")

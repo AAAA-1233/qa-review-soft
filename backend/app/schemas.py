@@ -163,8 +163,19 @@ class AuthVerifyIn(AuthRequestIn):
     code: str = Field(min_length=4, max_length=12)
 
 
+class AuthRegisterIn(BaseModel):
+    username: str = Field(min_length=3, max_length=40)
+    password: str = Field(min_length=6, max_length=128)
+
+
+class AuthLoginIn(BaseModel):
+    account: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=6, max_length=128)
+
+
 class UserOut(BaseModel):
     id: int
+    username: str | None = None
     email: str
 
 

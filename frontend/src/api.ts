@@ -98,8 +98,8 @@ function readFilename(disposition: string | null) {
 
 export const api = {
   projects: () => request<Project[]>("/projects"),
-  requestCode: (email: string) => request<{ ok: boolean; expires_in_minutes: number; debug_code?: string | null }>("/auth/request-code", { method: "POST", body: JSON.stringify({ email }) }),
-  verifyCode: (email: string, code: string) => request<AuthSession>("/auth/verify-code", { method: "POST", body: JSON.stringify({ email, code }) }),
+  register: (username: string, password: string) => request<AuthSession>("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }),
+  login: (account: string, password: string) => request<AuthSession>("/auth/login", { method: "POST", body: JSON.stringify({ account, password }) }),
   me: () => request<AuthUser>("/auth/me"),
   createProject: (payload: { name: string; dataset_type: string; source_path: string; project_path: string; media_path?: string }) =>
     request<Project>("/projects", { method: "POST", body: JSON.stringify(payload) }),

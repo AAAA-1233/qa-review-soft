@@ -130,6 +130,26 @@ kbd {
   gap: 7px;
 }
 
+.authTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 5px;
+  background: #e5dece;
+  border-radius: 9px;
+}
+
+.authTabs button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.authTabs button.active {
+  background: #fbfaf6;
+  border-color: #c9beaa;
+  box-shadow: 0 8px 18px rgba(34, 35, 31, 0.08);
+}
+
 .rail {
   background: linear-gradient(180deg, var(--rail), var(--rail2));
   color: #f8f3e8;

@@ -40,8 +40,6 @@ Render 会读取根目录的 `render.yaml`，创建 `qa-review-backend` 服务�
 DATABASE_URL=你的 Neon 数据库连接串
 CORS_ORIGINS=https://你的前端.pages.dev
 AUTH_SECRET=一段随机长字符串
-EMAIL_FROM=你的发件邮箱或 Resend 发件人
-RESEND_API_KEY=你的 Resend API Key
 ```
 
 第一次还没有前端地址时，可以先临时填：
@@ -68,22 +66,10 @@ https://qa-review-backend.onrender.com/health
 {"ok": true}
 ```
 
-## 3. 邮箱验证码
+## 3. 账号密码登录
 
-系统现在按邮箱验证码登录，每个邮箱只会看到自己的项目、样本、审核状态和导出文件。
-
-免费发信可以先用 Resend 或 Brevo：
-
-- Resend：后端填 `RESEND_API_KEY` 和 `EMAIL_FROM`。
-- Brevo：后端填 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASSWORD`、`EMAIL_FROM`。
-
-如果只是本地开发，可以临时开启：
-
-```env
-AUTH_CODE_DEV_MODE=true
-```
-
-这时接口会直接返回测试验证码，不会真的发邮件。线上不要开启。
+系统按账号密码注册登录。每个账号只会看到自己的项目、样本、审核状态和导出文件。
+密码不会明文保存，后端只保存哈希结果。
 
 ## 4. 部署 Cloudflare 前端
 

@@ -15,7 +15,6 @@ import {
   Keyboard,
   ListChecks,
   LogOut,
-  Mail,
   Maximize2,
   MessageSquareText,
   Pause,
@@ -255,7 +254,7 @@ export default function App() {
         </nav>
         <div className="railFooter">
           <span className={error ? "lamp error" : "lamp on"} />
-          <span>{authUser.email}</span>
+          <span>{authUser.username || authUser.email}</span>
           <button className="iconButton" onClick={logout} title="退出登录"><LogOut size={16} /></button>
         </div>
       </aside>
@@ -318,35 +317,28 @@ export default function App() {
 }
 
 function LoginPage({ onLogin }: { onLogin: (user: AuthUser) => void }) {
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [account, setAccount] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  const requestCode = async () => {
-    setBusy(true);
-    setMessage("");
-    try {
-      const result = await api.requestCode(email);
-      setSent(true);
-      setMessage(result.debug_code ? `测试验证码：${result.debug_code}` : `验证码已发送，${result.expires_in_minutes} 分钟内有效`);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "验证码发送失败");
-    } finally {
-      setBusy(false);
+  const submit = async () => {
+    if (mode === "register" && password !== confirmPassword) {
+      setMessage("两次输入的密码不一致");
+      return;
     }
-  };
-
-  const verify = async () => {
     setBusy(true);
     setMessage("");
     try {
-      const session = await api.verifyCode(email, code);
+      const session = mode === "register"
+        ? await api.register(account, password)
+        : await api.login(account, password);
       setAuthToken(session.access_token);
       onLogin(session.user);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "登录失败");
+      setMessage(err instanceof Error ? err.message : mode === "register" ? "注册失败" : "登录失败");
     } finally {
       setBusy(false);
     }
@@ -357,11 +349,17 @@ function LoginPage({ onLogin }: { onLogin: (user: AuthUser) => void }) {
       <section className="authPanel">
         <div className="brandMark">QA</div>
         <h1>问答审核</h1>
-        <label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /></label>
-        {sent && <label>验证码<input inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>}
+        <div className="authTabs">
+          <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>登录</button>
+          <button className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setMessage(""); }}>注册</button>
+        </div>
+        <label>账号<input autoFocus value={account} onChange={(event) => setAccount(event.target.value)} placeholder="请输入账号" /></label>
+        <label>密码<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="至少 6 位" /></label>
+        {mode === "register" && <label>确认密码<input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="再次输入密码" /></label>}
         <div className="rowActions">
-          <button disabled={busy || !email} onClick={requestCode}><Mail size={16} />{sent ? "重新发送" : "发送验证码"}</button>
-          {sent && <button className="primary" disabled={busy || !code} onClick={verify}>登录</button>}
+          <button className="primary" disabled={busy || !account || !password || (mode === "register" && !confirmPassword)} onClick={submit}>
+            {busy ? "处理中" : mode === "register" ? "注册并进入" : "登录"}
+          </button>
         </div>
         {message && <p className="formMessage">{message}</p>}
       </section>

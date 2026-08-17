@@ -9,11 +9,48 @@ from sqlalchemy.orm import Session
 from app import models
 from app.config import AUTH_CODE_DEV_MODE, AUTH_CODE_EXPIRE_MINUTES
 from app.database import get_db
-from app.schemas import AuthRequestIn, AuthRequestOut, AuthSessionOut, AuthVerifyIn, UserOut
-from app.services.auth import generate_code, get_current_user, hash_code, issue_token, normalize_email
+from app.schemas import AuthLoginIn, AuthRegisterIn, AuthRequestIn, AuthRequestOut, AuthSessionOut, AuthVerifyIn, UserOut
+from app.services.auth import generate_code, get_current_user, hash_code, hash_password, issue_token, normalize_email, normalize_username, verify_password
 from app.services.emailer import EmailSendError, send_login_code
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def user_out(user: models.User) -> UserOut:
+    return UserOut(id=user.id, username=user.username, email=user.email)
+
+
+@router.post("/register", response_model=AuthSessionOut)
+def register(payload: AuthRegisterIn, db: Session = Depends(get_db)):
+    username = normalize_username(payload.username)
+    existing = db.scalar(select(models.User).where(models.User.username == username))
+    if existing:
+        raise HTTPException(status.HTTP_409_CONFLICT, "账号已存在")
+    user = models.User(
+        username=username,
+        email=f"{username}@local.qa-review",
+        password_hash=hash_password(payload.password),
+        last_login_at=datetime.utcnow(),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return AuthSessionOut(access_token=issue_token(user), user=user_out(user))
+
+
+@router.post("/login", response_model=AuthSessionOut)
+def login(payload: AuthLoginIn, db: Session = Depends(get_db)):
+    account = payload.account.strip().lower()
+    if "@" in account:
+        user = db.scalar(select(models.User).where(models.User.email == account))
+    else:
+        user = db.scalar(select(models.User).where(models.User.username == normalize_username(account)))
+    if not user or not user.password_hash or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "账号或密码不正确")
+    user.last_login_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    return AuthSessionOut(access_token=issue_token(user), user=user_out(user))
 
 
 @router.post("/request-code", response_model=AuthRequestOut)
@@ -65,9 +102,9 @@ def verify_code(payload: AuthVerifyIn, db: Session = Depends(get_db)):
     user.last_login_at = datetime.utcnow()
     db.commit()
     db.refresh(user)
-    return AuthSessionOut(access_token=issue_token(user), user=UserOut(id=user.id, email=user.email))
+    return AuthSessionOut(access_token=issue_token(user), user=user_out(user))
 
 
 @router.get("/me", response_model=UserOut)
 def me(user: models.User = Depends(get_current_user)):
-    return UserOut(id=user.id, email=user.email)
+    return user_out(user)
