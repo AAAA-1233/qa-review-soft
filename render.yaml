@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: qa-review-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: QA_DATA_DIR
+        value: /tmp/qa-review-data
+      - key: ALLOW_SERVER_PATH_IMPORT
+        value: false
+      - key: SEED_SAMPLE_DATA
+        value: false
+      - key: CORS_ORIGINS
+        sync: false
