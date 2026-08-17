@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-qa_review}
+      POSTGRES_USER: ${POSTGRES_USER:-qa_review}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-qa_review}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-qa_review}:${POSTGRES_PASSWORD:-qa_review}@db:5432/${POSTGRES_DB:-qa_review}
+      QA_DATA_DIR: /data
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      ALLOW_SERVER_PATH_IMPORT: ${ALLOW_SERVER_PATH_IMPORT:-false}
+      SEED_SAMPLE_DATA: ${SEED_SAMPLE_DATA:-false}
+    volumes:
+      - qa_storage:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  qa_storage:
