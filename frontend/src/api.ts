@@ -1,6 +1,14 @@
 import { AIConfig, AITask, AITaskResult, AuthSession, AuthUser, ExportMode, Project, PromptTemplate, ProviderPreset, ReviewStatus, Sample, Stats } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+function defaultApiBase() {
+  const { hostname, port } = window.location;
+  if ((hostname === "127.0.0.1" || hostname === "localhost") && port === "4173") {
+    return "http://127.0.0.1:8000";
+  }
+  return "/api";
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE || defaultApiBase();
 const AUTH_TOKEN_STORAGE_KEY = "qa-review-auth-token";
 
 let authToken = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";

@@ -40,14 +40,12 @@ if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
   }
 }
 
-if (-not (Test-Path (Join-Path $frontend "dist\index.html"))) {
-  Write-Host "Building frontend..."
-  Push-Location $frontend
-  try {
-    & $npm run build
-  } finally {
-    Pop-Location
-  }
+Write-Host "Building frontend..."
+Push-Location $frontend
+try {
+  & $npm run build
+} finally {
+  Pop-Location
 }
 
 $backendLog = Join-Path $logDir "backend.log"
