@@ -153,3 +153,28 @@ class StatsOut(BaseModel):
     ai: dict[str, int]
     agreement: float
     total: int
+
+
+class AuthRequestIn(BaseModel):
+    email: str = Field(min_length=5, max_length=255)
+
+
+class AuthVerifyIn(AuthRequestIn):
+    code: str = Field(min_length=4, max_length=12)
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+
+
+class AuthRequestOut(BaseModel):
+    ok: bool
+    expires_in_minutes: int
+    debug_code: str | None = None
+
+
+class AuthSessionOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut

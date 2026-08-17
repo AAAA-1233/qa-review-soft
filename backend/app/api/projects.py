@@ -10,7 +10,9 @@ from app.config import ALLOW_SERVER_PATH_IMPORT
 from app.database import get_db
 from app.schemas import InspectResult, ProjectCreate, ProjectOut
 from app.services.dataset import create_project_from_path, inspect_dataset
+from app.services.auth import get_current_user, require_project
 from app.services.media import media_response, save_upload, upload_project_dir
+from app.services.project_cleanup import delete_project_fully
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -35,16 +37,19 @@ def project_out(db: Session, project: models.Project) -> ProjectOut:
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(db: Session = Depends(get_db)):
-    return [project_out(db, project) for project in db.scalars(select(models.Project).order_by(models.Project.updated_at.desc()))]
+def list_projects(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    query = select(models.Project).where(models.Project.owner_id == user.id).order_by(models.Project.updated_at.desc())
+    return [project_out(db, project) for project in db.scalars(query)]
 
 
 @router.post("", response_model=ProjectOut)
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(payload: ProjectCreate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     if not ALLOW_SERVER_PATH_IMPORT:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "服务器模式已关闭路径导入，请上传数据文件创建项目")
     try:
         project = create_project_from_path(db, payload)
+        project.owner_id = user.id
+        db.commit()
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return project_out(db, project)
@@ -58,6 +63,7 @@ async def create_project_upload(
     dataset_file: UploadFile = File(...),
     media_files: list[UploadFile] | None = File(None),
     db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
     upload_root = upload_project_dir(str(datetime.utcnow().timestamp()).replace(".", ""))
     source_path = await save_upload(dataset_file, upload_root / "source", "dataset.json")
@@ -81,13 +87,15 @@ async def create_project_upload(
     )
     try:
         project = create_project_from_path(db, payload)
+        project.owner_id = user.id
+        db.commit()
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return project_out(db, project)
 
 
 @router.post("/inspect-upload", response_model=InspectResult)
-async def inspect_upload(dataset_file: UploadFile = File(...)):
+async def inspect_upload(dataset_file: UploadFile = File(...), user: models.User = Depends(get_current_user)):
     upload_root = upload_project_dir("inspect")
     source_path = await save_upload(dataset_file, upload_root, "dataset.json")
     try:
@@ -97,26 +105,20 @@ async def inspect_upload(dataset_file: UploadFile = File(...)):
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
-def get_project(project_id: str, db: Session = Depends(get_db)):
-    project = db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(404, "项目不存在")
+def get_project(project_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    project = require_project(db, project_id, user)
     return project_out(db, project)
 
 
 @router.get("/{project_id}/media")
-def get_media(project_id: str, path: str = Query(...), db: Session = Depends(get_db)):
-    project = db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+def get_media(project_id: str, path: str = Query(...), db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    project = require_project(db, project_id, user)
     return media_response(project, path)
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
-def rename_project(project_id: str, name: str, db: Session = Depends(get_db)):
-    project = db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(404, "项目不存在")
+def rename_project(project_id: str, name: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    project = require_project(db, project_id, user)
     project.name = name
     project.updated_at = datetime.utcnow()
     db.commit()
@@ -124,17 +126,14 @@ def rename_project(project_id: str, name: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{project_id}")
-def delete_project(project_id: str, db: Session = Depends(get_db)):
-    project = db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(404, "项目不存在")
-    db.delete(project)
-    db.commit()
-    return {"ok": True}
+def delete_project(project_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    project = require_project(db, project_id, user)
+    deleted = delete_project_fully(db, project)
+    return {"ok": True, "deleted": deleted}
 
 
 @router.post("/inspect", response_model=InspectResult)
-def inspect(path: str):
+def inspect(path: str, user: models.User = Depends(get_current_user)):
     if not ALLOW_SERVER_PATH_IMPORT:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "服务器模式已关闭路径识别，请上传数据文件识别字段")
     try:

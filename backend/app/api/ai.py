@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.database import get_db
 from app.schemas import AIChatTestIn, AIChatTestOut, AIConfigIn, AIConfigOut, AITaskIn, AITaskOut, AITaskResultOut, ProviderPreset
+from app.services.auth import get_current_user, require_project
 from app.services.providers import AIProviderError, PROVIDER_PRESETS, chat_test
 from app.services.tasks import refresh_ai_task_queue, run_ai_task, task_to_dict
 
@@ -33,13 +34,15 @@ def local_proxy():
 
 
 @router.get("/configs", response_model=list[AIConfigOut])
-def configs(project_id: str, db: Session = Depends(get_db)):
+def configs(project_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     query = select(models.AIConfig).where(models.AIConfig.project_id == project_id).order_by(models.AIConfig.id.desc())
     return [_config_out(item) for item in db.scalars(query)]
 
 
 @router.post("/configs", response_model=AIConfigOut)
-def save_config(project_id: str, payload: AIConfigIn, db: Session = Depends(get_db)):
+def save_config(project_id: str, payload: AIConfigIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     data = payload.model_dump()
     config = db.scalars(
         select(models.AIConfig).where(models.AIConfig.project_id == project_id).order_by(models.AIConfig.id.desc())
@@ -58,14 +61,16 @@ def save_config(project_id: str, payload: AIConfigIn, db: Session = Depends(get_
 
 
 @router.post("/test")
-async def test_config(payload: AIConfigIn):
+async def test_config(project_id: str, payload: AIConfigIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     if not payload.base_url:
         raise HTTPException(400, "Base URL 不能为空")
     return {"ok": True, "protocol": payload.protocol, "base_url": payload.base_url, "model": payload.model}
 
 
 @router.post("/chat-test", response_model=AIChatTestOut)
-async def chat_test_config(payload: AIChatTestIn):
+async def chat_test_config(project_id: str, payload: AIChatTestIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     started = perf_counter()
     try:
         content = await chat_test(payload, payload.prompt)
@@ -83,7 +88,8 @@ async def chat_test_config(payload: AIChatTestIn):
 
 
 @router.post("/tasks", response_model=AITaskOut)
-def start_task(project_id: str, payload: AITaskIn, background: BackgroundTasks, db: Session = Depends(get_db)):
+def start_task(project_id: str, payload: AITaskIn, background: BackgroundTasks, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     config = db.get(models.AIConfig, payload.config_id)
     prompt = db.get(models.PromptTemplate, payload.prompt_id)
     if not config or config.project_id != project_id:
@@ -99,12 +105,14 @@ def start_task(project_id: str, payload: AITaskIn, background: BackgroundTasks, 
 
 
 @router.get("/tasks", response_model=list[AITaskOut])
-def list_tasks(project_id: str, db: Session = Depends(get_db)):
+def list_tasks(project_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     return [AITaskOut(**task_to_dict(task)) for task in db.scalars(select(models.AITask).where(models.AITask.project_id == project_id).order_by(models.AITask.id.desc()))]
 
 
 @router.get("/tasks/{task_id}/results", response_model=list[AITaskResultOut])
-def task_results(project_id: str, task_id: int, limit: int = 80, db: Session = Depends(get_db)):
+def task_results(project_id: str, task_id: int, limit: int = 80, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     task = db.get(models.AITask, task_id)
     if not task or task.project_id != project_id:
         raise HTTPException(404, "任务不存在")
@@ -131,7 +139,8 @@ def task_results(project_id: str, task_id: int, limit: int = 80, db: Session = D
 
 
 @router.post("/tasks/{task_id}/{action}", response_model=AITaskOut)
-def task_action(project_id: str, task_id: int, action: str, background: BackgroundTasks, db: Session = Depends(get_db)):
+def task_action(project_id: str, task_id: int, action: str, background: BackgroundTasks, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     task = db.get(models.AITask, task_id)
     if not task or task.project_id != project_id:
         raise HTTPException(404, "任务不存在")

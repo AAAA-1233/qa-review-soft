@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.ai import provider_router, router as ai_router
+from app.api.auth import router as auth_router
 from app.api.export import router as export_router
 from app.api.projects import router as projects_router
 from app.api.prompts import router as prompts_router
@@ -23,6 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(projects_router)
+app.include_router(auth_router)
 app.include_router(samples_router)
 app.include_router(prompts_router)
 app.include_router(ai_router)

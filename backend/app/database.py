@@ -30,6 +30,15 @@ def init_db() -> None:
             columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(ai_configs)").fetchall()}
             if "proxy_url" not in columns:
                 connection.exec_driver_sql("ALTER TABLE ai_configs ADD COLUMN proxy_url TEXT DEFAULT ''")
+            project_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(projects)").fetchall()}
+            if "owner_id" not in project_columns:
+                connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN owner_id INTEGER")
     elif DATABASE_URL.startswith("postgresql"):
         with engine.begin() as connection:
             connection.exec_driver_sql("ALTER TABLE ai_configs ADD COLUMN IF NOT EXISTS proxy_url TEXT DEFAULT ''")
+            connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE")
+
+    from app.services.project_cleanup import cleanup_orphan_project_rows
+
+    with SessionLocal() as db:
+        cleanup_orphan_project_rows(db)

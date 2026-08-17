@@ -111,3 +111,14 @@ export interface Stats {
   agreement: number;
   total: number;
 }
+
+export interface AuthUser {
+  id: number;
+  email: string;
+}
+
+export interface AuthSession {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+}

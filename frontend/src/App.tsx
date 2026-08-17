@@ -14,6 +14,8 @@ import {
   Image,
   Keyboard,
   ListChecks,
+  LogOut,
+  Mail,
   Maximize2,
   MessageSquareText,
   Pause,
@@ -30,8 +32,8 @@ import {
   ZoomIn,
   ZoomOut
 } from "lucide-react";
-import { api } from "./api";
-import { AIConfig, AIRangeFilter, AITask, AITaskResult, ConversationTurn, ExportMode, PageKey, Project, PromptTemplate, ProviderPreset, ReviewQueueFilter, ReviewStatus, Sample, Stats } from "./types";
+import { api, clearAuthToken, setAuthToken } from "./api";
+import { AIConfig, AIRangeFilter, AITask, AITaskResult, AuthUser, ConversationTurn, ExportMode, PageKey, Project, PromptTemplate, ProviderPreset, ReviewQueueFilter, ReviewStatus, Sample, Stats } from "./types";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
@@ -85,6 +87,8 @@ function matchesReviewQueueFilter(sample: Sample, filter: ReviewQueueFilter) {
 }
 
 export default function App() {
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [page, setPage] = useState<PageKey>("ai");
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState("");
@@ -111,6 +115,10 @@ export default function App() {
   const sample = samples[activeSample];
   const selectedPromptId = projectId ? selectedPromptByProject[projectId] ?? null : null;
 
+  useEffect(() => {
+    api.me().then(setAuthUser).catch(() => clearAuthToken()).finally(() => setAuthChecking(false));
+  }, []);
+
   const setSelectedPromptId = useCallback<PromptSelectionSetter>((value) => {
     if (!projectId) return;
     setSelectedPromptByProject((current) => {
@@ -133,15 +141,17 @@ export default function App() {
   }, [projectId]);
 
   const loadProjects = useCallback(async () => {
+    if (!authUser) return;
     try {
       const items = await api.projects();
       setProjects(items);
       setActiveProject((current) => items.some((item) => item.id === current) ? current : items[0]?.id || "");
+      if (!items.length) setPage((current) => current === "settings" ? current : "import");
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "后端连接失败");
     }
-  }, []);
+  }, [authUser]);
 
   const loadSamples = useCallback(async (nextIndex = 0) => {
     if (!projectId) return;
@@ -158,9 +168,10 @@ export default function App() {
   }, [filter, projectId, query]);
 
   useEffect(() => {
+    if (!authUser) return;
     loadProjects();
     api.providers().then(setProviders).catch(() => setProviders([]));
-  }, [loadProjects]);
+  }, [authUser, loadProjects]);
 
   useEffect(() => {
     loadSamples(0);
@@ -208,6 +219,20 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   });
 
+  const logout = () => {
+    clearAuthToken();
+    setAuthUser(null);
+    setProjects([]);
+    setActiveProject("");
+    setSamples([]);
+    setPage("ai");
+  };
+
+  if (authChecking) {
+    return <main className="authShell"><section className="authPanel"><div className="brandMark">QA</div><h1>正在连接</h1></section></main>;
+  }
+  if (!authUser) return <LoginPage onLogin={setAuthUser} />;
+
   return (
     <main className="shell">
       <aside className="rail" aria-label="主导航">
@@ -230,7 +255,8 @@ export default function App() {
         </nav>
         <div className="railFooter">
           <span className={error ? "lamp error" : "lamp on"} />
-          <span>{error ? "离线" : "已连接"}</span>
+          <span>{authUser.email}</span>
+          <button className="iconButton" onClick={logout} title="退出登录"><LogOut size={16} /></button>
         </div>
       </aside>
 
@@ -286,6 +312,58 @@ export default function App() {
         {page === "stats" && project && <StatsPage project={project} />}
         {page === "export" && project && <ExportPage project={project} />}
         {page === "settings" && <SettingsPage providers={providers} />}
+      </section>
+    </main>
+  );
+}
+
+function LoginPage({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const requestCode = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await api.requestCode(email);
+      setSent(true);
+      setMessage(result.debug_code ? `测试验证码：${result.debug_code}` : `验证码已发送，${result.expires_in_minutes} 分钟内有效`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "验证码发送失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verify = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const session = await api.verifyCode(email, code);
+      setAuthToken(session.access_token);
+      onLogin(session.user);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "登录失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <main className="authShell">
+      <section className="authPanel">
+        <div className="brandMark">QA</div>
+        <h1>问答审核</h1>
+        <label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /></label>
+        {sent && <label>验证码<input inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" /></label>}
+        <div className="rowActions">
+          <button disabled={busy || !email} onClick={requestCode}><Mail size={16} />{sent ? "重新发送" : "发送验证码"}</button>
+          {sent && <button className="primary" disabled={busy || !code} onClick={verify}>登录</button>}
+        </div>
+        {message && <p className="formMessage">{message}</p>}
       </section>
     </main>
   );
@@ -1090,12 +1168,34 @@ function MediaPreview({ projectId, media }: { projectId: string; media?: string 
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [expanded, setExpanded] = useState(false);
+  const [src, setSrc] = useState("");
 
   useEffect(() => {
     setFailed(false);
     setZoom(1);
     setExpanded(false);
-  }, [media]);
+    setSrc("");
+    if (!media) return;
+    if (/^(https?:|data:|blob:)/i.test(media)) {
+      setSrc(media);
+      return;
+    }
+    let active = true;
+    let objectUrl = "";
+    api.mediaBlob(projectId, media)
+      .then((file) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(file.blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [media, projectId]);
 
   if (!media) {
     return (
@@ -1106,7 +1206,6 @@ function MediaPreview({ projectId, media }: { projectId: string; media?: string 
     );
   }
 
-  const src = resolveMediaUrl(projectId, media);
   const zoomOut = () => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))));
   const zoomIn = () => setZoom((value) => Math.min(4, Number((value + 0.25).toFixed(2))));
   const resetZoom = () => setZoom(1);
@@ -1122,7 +1221,7 @@ function MediaPreview({ projectId, media }: { projectId: string; media?: string 
   return (
     <div className={failed ? "mediaViewport failed" : "mediaViewport hasImage"}>
       {!failed && renderControls()}
-      {!failed && <div className="mediaCanvas"><img className="mediaImage" src={src} alt={media} style={{ transform: `scale(${zoom})` }} onError={() => setFailed(true)} /></div>}
+      {!failed && src && <div className="mediaCanvas"><img className="mediaImage" src={src} alt={media} style={{ transform: `scale(${zoom})` }} onError={() => setFailed(true)} /></div>}
       {failed && <Image size={36} />}
       <span>{media}</span>
       {expanded && !failed && (
@@ -1132,17 +1231,12 @@ function MediaPreview({ projectId, media }: { projectId: string; media?: string 
             <button type="button" className="iconButton" onClick={() => setExpanded(false)} title="关闭"><X size={16} /></button>
           </div>
           <div className="mediaOverlayCanvas">
-            <img src={src} alt={media} style={{ transform: `scale(${zoom})` }} />
+            {src && <img src={src} alt={media} style={{ transform: `scale(${zoom})` }} />}
           </div>
         </div>
       )}
     </div>
   );
-}
-
-function resolveMediaUrl(projectId: string, media: string) {
-  if (/^(https?:|data:|blob:)/i.test(media)) return media;
-  return api.mediaUrl(projectId, media);
 }
 
 function LatexText({ value }: { value: string }) {

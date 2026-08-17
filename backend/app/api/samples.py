@@ -8,6 +8,7 @@ from app import models
 from app.database import get_db
 from app.schemas import ReviewIn, SamplePage, SampleOut
 from app.services.dataset import sample_to_dict
+from app.services.auth import get_current_user, require_project
 from app.services.review_logic import merged_status_condition
 
 router = APIRouter(prefix="/projects/{project_id}/samples", tags=["samples"])
@@ -21,7 +22,9 @@ def list_samples(
     limit: int = Query(50, ge=1, le=10000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
+    require_project(db, project_id, user)
     query = select(models.Sample).where(models.Sample.project_id == project_id)
     count_query = select(func.count(models.Sample.id)).where(models.Sample.project_id == project_id)
     condition = merged_status_condition(status)
@@ -41,7 +44,8 @@ def list_samples(
 
 
 @router.get("/{sample_id}", response_model=SampleOut)
-def get_sample(project_id: str, sample_id: int, db: Session = Depends(get_db)):
+def get_sample(project_id: str, sample_id: int, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     sample = db.get(models.Sample, sample_id)
     if not sample or sample.project_id != project_id:
         raise HTTPException(404, "样本不存在")
@@ -49,7 +53,8 @@ def get_sample(project_id: str, sample_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{sample_id}/review", response_model=SampleOut)
-def review_sample(project_id: str, sample_id: int, payload: ReviewIn, db: Session = Depends(get_db)):
+def review_sample(project_id: str, sample_id: int, payload: ReviewIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     sample = db.get(models.Sample, sample_id)
     if not sample or sample.project_id != project_id:
         raise HTTPException(404, "样本不存在")
@@ -67,7 +72,8 @@ def review_sample(project_id: str, sample_id: int, payload: ReviewIn, db: Sessio
 
 
 @router.post("/undo")
-def undo_review(project_id: str, db: Session = Depends(get_db)):
+def undo_review(project_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    require_project(db, project_id, user)
     history = db.scalar(select(models.ReviewHistory).where(models.ReviewHistory.project_id == project_id).order_by(models.ReviewHistory.id.desc()))
     if not history:
         return {"ok": False}

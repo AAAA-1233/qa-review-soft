@@ -1,13 +1,30 @@
-import { AIConfig, AITask, AITaskResult, ExportMode, Project, PromptTemplate, ProviderPreset, ReviewStatus, Sample, Stats } from "./types";
+import { AIConfig, AITask, AITaskResult, AuthSession, AuthUser, ExportMode, Project, PromptTemplate, ProviderPreset, ReviewStatus, Sample, Stats } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+const AUTH_TOKEN_STORAGE_KEY = "qa-review-auth-token";
+
+let authToken = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+
+export function setAuthToken(token: string) {
+  authToken = token;
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+}
+
+export function clearAuthToken() {
+  authToken = "";
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
+function authHeaders(headers?: HeadersInit): HeadersInit {
+  return authToken ? { Authorization: `Bearer ${authToken}`, ...(headers ?? {}) } : (headers ?? {});
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) }
+      headers: authHeaders({ "Content-Type": "application/json", ...(init?.headers ?? {}) })
     });
   } catch (err) {
     throw new Error(`无法连接后端服务：${API_BASE}`);
@@ -24,7 +41,8 @@ async function formRequest<T>(path: string, body: FormData): Promise<T> {
   try {
     response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      body
+      body,
+      headers: authHeaders()
     });
   } catch (err) {
     throw new Error(`无法连接后端服务：${API_BASE}`);
@@ -39,7 +57,7 @@ async function formRequest<T>(path: string, body: FormData): Promise<T> {
 async function blobRequest(path: string, init?: RequestInit): Promise<{ blob: Blob; filename: string }> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, init);
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers: authHeaders(init?.headers) });
   } catch (err) {
     throw new Error(`无法连接后端服务：${API_BASE}`);
   }
@@ -72,6 +90,9 @@ function readFilename(disposition: string | null) {
 
 export const api = {
   projects: () => request<Project[]>("/projects"),
+  requestCode: (email: string) => request<{ ok: boolean; expires_in_minutes: number; debug_code?: string | null }>("/auth/request-code", { method: "POST", body: JSON.stringify({ email }) }),
+  verifyCode: (email: string, code: string) => request<AuthSession>("/auth/verify-code", { method: "POST", body: JSON.stringify({ email, code }) }),
+  me: () => request<AuthUser>("/auth/me"),
   createProject: (payload: { name: string; dataset_type: string; source_path: string; project_path: string; media_path?: string }) =>
     request<Project>("/projects", { method: "POST", body: JSON.stringify(payload) }),
   deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${projectId}`, { method: "DELETE" }),
@@ -91,6 +112,7 @@ export const api = {
     return formRequest("/projects/inspect-upload", body);
   },
   mediaUrl: (projectId: string, path: string) => `${API_BASE}/projects/${projectId}/media?path=${encodeURIComponent(path)}`,
+  mediaBlob: (projectId: string, path: string) => blobRequest(`/projects/${projectId}/media?path=${encodeURIComponent(path)}`),
   samples: (projectId: string, status = "ALL", q = "", limit = 50, offset = 0) =>
     request<{ items: Sample[]; total: number; limit: number; offset: number }>(
       `/projects/${projectId}/samples?status=${encodeURIComponent(status)}&q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`
