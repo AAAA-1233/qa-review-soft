@@ -10,6 +10,8 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: PYTHON_VERSION
+        value: 3.12.8
       - key: QA_DATA_DIR
         value: /tmp/qa-review-data
       - key: ALLOW_SERVER_PATH_IMPORT
